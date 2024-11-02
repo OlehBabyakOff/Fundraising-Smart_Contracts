@@ -1,12 +1,11 @@
 const { expect } = require("chai");
 const {
-  time,
   loadFixture,
 } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
 const { ethers } = require("hardhat");
 
-describe("DonationEscrow", function () {
-  async function deployDonationEscrowFixture() {
+describe("Campaign", function () {
+  async function deployCampaignFixture() {
     const [creator, donor1, donor2] = await ethers.getSigners();
     const goalAmount = ethers.parseEther("10"); // Goal amount of 10 ETH
     const minDonation = ethers.parseEther("1"); // Minimum donation of 1 ETH
@@ -16,8 +15,8 @@ describe("DonationEscrow", function () {
     const currency = "ETH"; // Currency
     const priceFeedAddress = "0x0000000000000000000000000000000000000000"; // Mock price feed address
 
-    const DonationEscrow = await ethers.getContractFactory("DonationEscrow");
-    const escrow = await DonationEscrow.deploy(
+    const Campaign = await ethers.getContractFactory("Campaign");
+    const campaign = await Campaign.deploy(
       creator.address,
       goalAmount,
       minDonation,
@@ -28,10 +27,10 @@ describe("DonationEscrow", function () {
       priceFeedAddress
     );
 
-    await escrow.waitForDeployment();
+    await campaign.waitForDeployment();
 
     return {
-      escrow,
+      campaign,
       creator,
       donor1,
       donor2,
@@ -45,109 +44,105 @@ describe("DonationEscrow", function () {
 
   describe("Deployment", function () {
     it("Should set the right creator", async function () {
-      const { escrow, creator } = await loadFixture(
-        deployDonationEscrowFixture
-      );
-      expect(await escrow.creator()).to.equal(creator.address);
+      const { campaign, creator } = await loadFixture(deployCampaignFixture);
+      expect(await campaign.creator()).to.equal(creator.address);
     });
 
     it("Should set the right goal amount", async function () {
-      const { escrow, goalAmount } = await loadFixture(
-        deployDonationEscrowFixture
-      );
-      expect(await escrow.goalAmount()).to.equal(goalAmount);
+      const { campaign, goalAmount } = await loadFixture(deployCampaignFixture);
+      expect(await campaign.goalAmount()).to.equal(goalAmount);
     });
 
     it("Should set the right min and max donation amounts", async function () {
-      const { escrow, minDonation, maxDonation } = await loadFixture(
-        deployDonationEscrowFixture
+      const { campaign, minDonation, maxDonation } = await loadFixture(
+        deployCampaignFixture
       );
-      expect(await escrow.minDonation()).to.equal(minDonation);
-      expect(await escrow.maxDonation()).to.equal(maxDonation);
+      expect(await campaign.minDonation()).to.equal(minDonation);
+      expect(await campaign.maxDonation()).to.equal(maxDonation);
     });
   });
 
   describe("Donations", function () {
     it("Should accept donations within the allowed range", async function () {
-      const { escrow, donor1, minDonation, currency } = await loadFixture(
-        deployDonationEscrowFixture
+      const { campaign, donor1, minDonation, currency } = await loadFixture(
+        deployCampaignFixture
       );
 
       await expect(
-        escrow.connect(donor1).donate(currency, { value: minDonation })
+        campaign.connect(donor1).donate(currency, { value: minDonation })
       )
-        .to.emit(escrow, "DonationReceived")
+        .to.emit(campaign, "DonationReceived")
         .withArgs(await donor1.getAddress(), minDonation, currency);
 
-      expect(await escrow.totalContributionsAmount()).to.equal(minDonation);
-      expect(await escrow.contributions(await donor1.getAddress())).to.equal(
+      expect(await campaign.totalContributionsAmount()).to.equal(minDonation);
+      expect(await campaign.contributions(await donor1.getAddress())).to.equal(
         minDonation
       );
     });
 
     it("Should revert if donation is below minimum donation", async function () {
-      const { escrow, donor1, currency } = await loadFixture(
-        deployDonationEscrowFixture
+      const { campaign, donor1, currency } = await loadFixture(
+        deployCampaignFixture
       );
       const lowDonation = ethers.parseEther("0.5"); // Below minimum
 
       await expect(
-        escrow.connect(donor1).donate(currency, { value: lowDonation })
+        campaign.connect(donor1).donate(currency, { value: lowDonation })
       ).to.be.revertedWith("Donation out of range");
     });
 
     it("Should revert if donation exceeds maximum donation", async function () {
-      const { escrow, donor1, currency } = await loadFixture(
-        deployDonationEscrowFixture
+      const { campaign, donor1, currency } = await loadFixture(
+        deployCampaignFixture
       );
       const highDonation = ethers.parseEther("6"); // Above maximum
 
       await expect(
-        escrow.connect(donor1).donate(currency, { value: highDonation })
+        campaign.connect(donor1).donate(currency, { value: highDonation })
       ).to.be.revertedWith("Donation out of range");
     });
   });
 
   describe("Refunds", function () {
     it("Should allow refunds if the goal was not met", async function () {
-      const { escrow, donor1, currency } = await loadFixture(
-        deployDonationEscrowFixture
+      const { campaign, donor1, currency } = await loadFixture(
+        deployCampaignFixture
       );
       const donation = ethers.parseEther("1");
 
-      await escrow.connect(donor1).donate(currency, { value: donation });
+      await campaign.connect(donor1).donate(currency, { value: donation });
 
       // simulates the passage of the time
       await ethers.provider.send("evm_increaseTime", [3600]);
       await ethers.provider.send("evm_mine");
 
-      expect(await escrow.contributions(donor1.address)).to.equal(donation);
-      await escrow.connect(donor1).refund();
-      expect(await escrow.contributions(donor1.address)).to.equal(0);
+      expect(await campaign.contributions(donor1.address)).to.equal(donation);
+      await campaign.connect(donor1).refund();
+      expect(await campaign.contributions(donor1.address)).to.equal(0);
     });
 
     it("Should revert refunds if the goal was met", async function () {
-      const { escrow, donor1, currency, maxDonation, minDonation } =
-        await loadFixture(deployDonationEscrowFixture);
+      const { campaign, donor1, currency, maxDonation, minDonation } =
+        await loadFixture(deployCampaignFixture);
 
       await Promise.all([
-        escrow.connect(donor1).donate(currency, { value: maxDonation }),
-        escrow.connect(donor1).donate(currency, { value: maxDonation }),
+        campaign.connect(donor1).donate(currency, { value: maxDonation }),
+        campaign.connect(donor1).donate(currency, { value: maxDonation }),
       ]);
 
-      await expect(escrow.connect(donor1).refund()).to.be.revertedWith(
+      await expect(campaign.connect(donor1).refund()).to.be.revertedWith(
         "Goal met, no refunds available"
       );
     });
 
     it("Should revert if trying to refund before the end date", async function () {
-      const { escrow, donor1, currency, minDonation } = await loadFixture(
-        deployDonationEscrowFixture
+      const { campaign, donor1, currency, minDonation } = await loadFixture(
+        deployCampaignFixture
       );
 
-      await escrow.connect(donor1).donate(currency, { value: minDonation });
+      await campaign.connect(donor1).donate(currency, { value: minDonation });
 
-      await expect(escrow.connect(donor1).refund()).to.be.revertedWith(
+      await expect(campaign.connect(donor1).refund()).to.be.revertedWith(
         "Campaign must be ended for refunds"
       );
     });
@@ -155,39 +150,39 @@ describe("DonationEscrow", function () {
 
   describe("Fund Releases", function () {
     it("Should allow creator to release funds if goal is met", async function () {
-      const { escrow, donor1, currency, maxDonation } = await loadFixture(
-        deployDonationEscrowFixture
+      const { campaign, donor1, currency, maxDonation } = await loadFixture(
+        deployCampaignFixture
       );
 
-      await escrow.connect(donor1).donate(currency, { value: maxDonation });
+      await campaign.connect(donor1).donate(currency, { value: maxDonation });
 
       //TODO fix milestones logic
 
-      await expect(escrow.releaseFunds())
-        .to.emit(escrow, "FundsReleased")
+      await expect(campaign.releaseFunds())
+        .to.emit(campaign, "FundsReleased")
         .withArgs(0, ethers.parseEther("5")); // Release first milestone
 
       expect(
-        await ethers.provider.getBalance(await escrow.getAddress())
+        await ethers.provider.getBalance(await campaign.getAddress())
       ).to.equal(0); // Remaining balance after release
     });
 
     it("Should revert if trying to release funds before goal is met", async function () {
-      const { escrow } = await loadFixture(deployDonationEscrowFixture);
-      await expect(escrow.releaseFunds()).to.be.revertedWith("Goal not met");
+      const { campaign } = await loadFixture(deployCampaignFixture);
+      await expect(campaign.releaseFunds()).to.be.revertedWith("Goal not met");
     });
 
     it("Should revert if trying to release funds after all milestones are released", async function () {
-      const { escrow, donor1 } = await loadFixture(deployDonationEscrowFixture);
+      const { campaign, donor1 } = await loadFixture(deployCampaignFixture);
       await donor1.sendTransaction({
-        to: await escrow.getAddress(),
+        to: await campaign.getAddress(),
         value: ethers.parseEther("10"),
       }); // Meet goal
 
-      await escrow.releaseFunds(); // Release first milestone
-      await escrow.releaseFunds(); // Release second milestone
+      await campaign.releaseFunds(); // Release first milestone
+      await campaign.releaseFunds(); // Release second milestone
 
-      await expect(escrow.releaseFunds()).to.be.revertedWith(
+      await expect(campaign.releaseFunds()).to.be.revertedWith(
         "All milestones completed"
       );
     });
@@ -195,21 +190,19 @@ describe("DonationEscrow", function () {
 
   describe("Campaign Ending", function () {
     it("Should allow the creator to end the campaign after the end date", async function () {
-      const { escrow } = await loadFixture(deployDonationEscrowFixture);
+      const { campaign } = await loadFixture(deployCampaignFixture);
 
       // simulates the passage of the time
       await ethers.provider.send("evm_increaseTime", [3600]);
       await ethers.provider.send("evm_mine");
 
-      await escrow.endCampaign();
-      expect(await escrow.isCampaignEnded()).to.be.true;
+      await campaign.endCampaign();
+      expect(await campaign.isCampaignEnded()).to.be.true;
     });
 
     it("Should revert if the creator tries to end the campaign before the end date", async function () {
-      const { escrow, creator } = await loadFixture(
-        deployDonationEscrowFixture
-      );
-      await expect(escrow.endCampaign()).to.be.revertedWith(
+      const { campaign, creator } = await loadFixture(deployCampaignFixture);
+      await expect(campaign.endCampaign()).to.be.revertedWith(
         "Campaign end date not reached"
       );
     });

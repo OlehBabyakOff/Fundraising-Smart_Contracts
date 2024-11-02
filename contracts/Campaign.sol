@@ -9,7 +9,7 @@ interface IPriceFeed {
     function getLatestPrice() external view returns (uint);
 }
 
-contract DonationEscrow {
+contract Campaign {
     address public serverAddress;
     address public creator;
     uint public goalAmount;
@@ -105,8 +105,11 @@ contract DonationEscrow {
         tokenAddresses["BAT"] = 0x0D8775F648430679A709E98d2b0Cb6250d2887EF;
     }
 
-    modifier onlyServer() {
-        require(msg.sender == serverAddress, "Not authorized server");
+    modifier onlyCreatorOrServer() {
+        require(
+            msg.sender == creator || msg.sender == serverAddress,
+            "Not allowed"
+        );
         _;
     }
 
@@ -194,7 +197,7 @@ contract DonationEscrow {
         emit RefundIssued(msg.sender, contributedAmount, donationCurrency);
     }
 
-    function releaseFunds() external onlyCreator onlyServer {
+    function releaseFunds() external onlyCreatorOrServer {
         require(isGoalMet, "Goal not met");
 
         require(
@@ -211,7 +214,7 @@ contract DonationEscrow {
         emit FundsReleased(nextMilestoneIndex - 1, milestone.amount);
     }
 
-    function endCampaign() external onlyCreator onlyServer {
+    function endCampaign() external onlyCreatorOrServer {
         require(block.timestamp >= endDate, "Campaign end date not reached");
         isCampaignEnded = true;
     }
