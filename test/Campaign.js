@@ -57,7 +57,7 @@ describe("Campaign", function () {
       );
     });
 
-    it("Should revert if donation is below minimum donation", async function () {
+    it("Should revert if donation is below minimum amount", async function () {
       const { campaign, donor } = await loadFixture(deployCampaignFixture);
       const lowDonation = ethers.parseEther("0.001");
 
