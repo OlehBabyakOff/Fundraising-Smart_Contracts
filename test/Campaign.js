@@ -6,23 +6,15 @@ const { ethers } = require("hardhat");
 
 describe("Campaign", function () {
   async function deployCampaignFixture() {
-    const [creator, donor1, donor2] = await ethers.getSigners();
+    const [creator, donor] = await ethers.getSigners();
     const goalAmount = ethers.parseEther("10"); // Goal amount of 10 ETH
-    const minDonation = ethers.parseEther("1"); // Minimum donation of 1 ETH
-    const maxDonation = ethers.parseEther("5"); // Maximum donation of 5 ETH
     const endDate = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-    const currency = "ETH"; // Currency
-    const priceFeedAddress = "0x0000000000000000000000000000000000000000"; // Mock price feed address
 
     const Campaign = await ethers.getContractFactory("Campaign");
     const campaign = await Campaign.deploy(
       creator.address,
       goalAmount,
-      minDonation,
-      maxDonation,
-      endDate,
-      currency,
-      priceFeedAddress
+      endDate
     );
 
     await campaign.waitForDeployment();
@@ -30,13 +22,9 @@ describe("Campaign", function () {
     return {
       campaign,
       creator,
-      donor1,
-      donor2,
+      donor,
       goalAmount,
-      minDonation,
-      maxDonation,
       endDate,
-      currency,
     };
   }
 
@@ -50,97 +38,86 @@ describe("Campaign", function () {
       const { campaign, goalAmount } = await loadFixture(deployCampaignFixture);
       expect(await campaign.goalAmount()).to.equal(goalAmount);
     });
-
-    it("Should set the right min and max donation amounts", async function () {
-      const { campaign, minDonation, maxDonation } = await loadFixture(
-        deployCampaignFixture
-      );
-      expect(await campaign.minDonation()).to.equal(minDonation);
-      expect(await campaign.maxDonation()).to.equal(maxDonation);
-    });
   });
 
   describe("Donations", function () {
     it("Should accept donations within the allowed range", async function () {
-      const { campaign, donor1, minDonation, currency } = await loadFixture(
-        deployCampaignFixture
-      );
+      const { campaign, donor } = await loadFixture(deployCampaignFixture);
 
-      await expect(
-        campaign.connect(donor1).donate(currency, { value: minDonation })
-      )
+      const donation = ethers.parseEther("1");
+
+      await expect(campaign.connect(donor).donate({ value: donation }))
         .to.emit(campaign, "DonationReceived")
-        .withArgs(await donor1.getAddress(), minDonation, currency);
+        .withArgs(await donor.getAddress(), donation);
 
-      expect(await campaign.totalContributionsAmount()).to.equal(minDonation);
-      expect(await campaign.contributions(await donor1.getAddress())).to.equal(
-        minDonation
+      expect(await campaign.totalContributionsAmount()).to.equal(donation);
+
+      expect(await campaign.contributions(await donor.getAddress())).to.equal(
+        donation
       );
     });
 
     it("Should revert if donation is below minimum donation", async function () {
-      const { campaign, donor1, currency } = await loadFixture(
-        deployCampaignFixture
-      );
-      const lowDonation = ethers.parseEther("0.5"); // Below minimum
+      const { campaign, donor } = await loadFixture(deployCampaignFixture);
+      const lowDonation = ethers.parseEther("0.5");
 
       await expect(
-        campaign.connect(donor1).donate(currency, { value: lowDonation })
-      ).to.be.revertedWith("Donation out of range");
+        campaign.connect(donor).donate({ value: lowDonation })
+      ).to.be.revertedWith(
+        "Donations below the minimum amount are not allowed"
+      );
     });
 
-    it("Should revert if donation exceeds maximum donation", async function () {
-      const { campaign, donor1, currency } = await loadFixture(
-        deployCampaignFixture
-      );
-      const highDonation = ethers.parseEther("6"); // Above maximum
+    it("Should revert if donation exceeds goal", async function () {
+      const { campaign, donor } = await loadFixture(deployCampaignFixture);
+
+      const highDonation = ethers.parseEther("11"); // Above maximum
 
       await expect(
-        campaign.connect(donor1).donate(currency, { value: highDonation })
-      ).to.be.revertedWith("Donation out of range");
+        campaign.connect(donor).donate({ value: highDonation })
+      ).to.be.revertedWith("Donation exceeds goal");
     });
   });
 
   describe("Refunds", function () {
     it("Should allow refunds if the goal was not met", async function () {
-      const { campaign, donor1, currency } = await loadFixture(
-        deployCampaignFixture
-      );
+      const { campaign, donor } = await loadFixture(deployCampaignFixture);
+
       const donation = ethers.parseEther("1");
 
-      await campaign.connect(donor1).donate(currency, { value: donation });
+      await campaign.connect(donor).donate({ value: donation });
 
       // simulates the passage of the time
       await ethers.provider.send("evm_increaseTime", [3600]);
       await ethers.provider.send("evm_mine");
 
-      expect(await campaign.contributions(donor1.address)).to.equal(donation);
-      await campaign.connect(donor1).refund();
-      expect(await campaign.contributions(donor1.address)).to.equal(0);
+      expect(await campaign.contributions(donor.address)).to.equal(donation);
+
+      await campaign.connect(donor).refund();
+
+      expect(await campaign.contributions(donor.address)).to.equal(0);
     });
 
     it("Should revert refunds if the goal was met", async function () {
-      const { campaign, donor1, donor2, currency, maxDonation, minDonation } =
-        await loadFixture(deployCampaignFixture);
+      const { campaign, donor } = await loadFixture(deployCampaignFixture);
 
-      await Promise.all([
-        campaign.connect(donor1).donate(currency, { value: maxDonation }),
-        campaign.connect(donor2).donate(currency, { value: maxDonation }),
-      ]);
+      const donation = ethers.parseEther("10");
 
-      await expect(campaign.connect(donor1).refund()).to.be.revertedWith(
+      await campaign.connect(donor).donate({ value: donation });
+
+      await expect(campaign.connect(donor).refund()).to.be.revertedWith(
         "Goal met, no refunds available"
       );
     });
 
     it("Should revert if trying to refund before the end date", async function () {
-      const { campaign, donor1, currency, minDonation } = await loadFixture(
-        deployCampaignFixture
-      );
+      const { campaign, donor } = await loadFixture(deployCampaignFixture);
 
-      await campaign.connect(donor1).donate(currency, { value: minDonation });
+      const donation = ethers.parseEther("1");
 
-      await expect(campaign.connect(donor1).refund()).to.be.revertedWith(
+      await campaign.connect(donor).donate({ value: donation });
+
+      await expect(campaign.connect(donor).refund()).to.be.revertedWith(
         "Campaign must be ended for refunds"
       );
     });
@@ -148,17 +125,15 @@ describe("Campaign", function () {
 
   describe("Fund Releases", function () {
     it("Should allow creator to release funds if goal is met", async function () {
-      const { campaign, donor1, donor2, currency, maxDonation } =
-        await loadFixture(deployCampaignFixture);
+      const { campaign, donor } = await loadFixture(deployCampaignFixture);
 
-      await Promise.all([
-        campaign.connect(donor1).donate(currency, { value: maxDonation }),
-        campaign.connect(donor2).donate(currency, { value: maxDonation }),
-      ]);
+      const donation = ethers.parseEther("10");
+
+      await campaign.connect(donor).donate({ value: donation });
 
       await expect(campaign.releaseFunds())
         .to.emit(campaign, "FundsReleased")
-        .withArgs(ethers.parseEther("10"));
+        .withArgs(donation);
 
       expect(
         await ethers.provider.getBalance(await campaign.getAddress())
@@ -172,13 +147,11 @@ describe("Campaign", function () {
     });
 
     it("Should revert if trying to release funds after goal is met and funds are released", async function () {
-      const { campaign, donor1, donor2, currency, maxDonation } =
-        await loadFixture(deployCampaignFixture);
+      const { campaign, donor } = await loadFixture(deployCampaignFixture);
 
-      await Promise.all([
-        campaign.connect(donor1).donate(currency, { value: maxDonation }),
-        campaign.connect(donor2).donate(currency, { value: maxDonation }),
-      ]);
+      const donation = ethers.parseEther("10");
+
+      await campaign.connect(donor).donate({ value: donation });
 
       await campaign.releaseFunds();
 
@@ -201,7 +174,8 @@ describe("Campaign", function () {
     });
 
     it("Should revert if the creator tries to end the campaign before the end date", async function () {
-      const { campaign, creator } = await loadFixture(deployCampaignFixture);
+      const { campaign } = await loadFixture(deployCampaignFixture);
+
       await expect(campaign.endCampaign()).to.be.revertedWith(
         "Campaign end date not reached"
       );
