@@ -21,14 +21,6 @@ contract Campaign {
     bool public isCampaignEnded;
     string public currency;
 
-    struct Milestone {
-        uint amount;
-        bool isReleased;
-    }
-
-    Milestone[] public milestones;
-    uint public nextMilestoneIndex;
-
     mapping(address => uint) public contributions;
     mapping(address => string) public donorCurrencies;
     mapping(string => address) public tokenAddresses;
@@ -36,7 +28,7 @@ contract Campaign {
     IPriceFeed public priceFeed;
 
     event DonationReceived(address indexed donor, uint amount, string currency);
-    event FundsReleased(uint milestoneIndex, uint amount);
+    event FundsReleased(uint amount);
     event RefundIssued(address indexed donor, uint amount, string currency);
 
     constructor(
@@ -45,16 +37,11 @@ contract Campaign {
         uint _minDonation,
         uint _maxDonation,
         uint _endDate,
-        uint[] memory _milestoneAmounts,
         string memory _currency,
         address _priceFeedAddress
     ) {
         require(_endDate > block.timestamp, "End date must be in the future");
         require(_goalAmount > 0, "Goal amount must be greater than 0");
-        require(
-            _milestoneAmounts.length > 0,
-            "At least one milestone is required"
-        );
 
         creator = _creator;
         goalAmount = _goalAmount;
@@ -65,18 +52,6 @@ contract Campaign {
         priceFeed = IPriceFeed(_priceFeedAddress);
         isGoalMet = false;
         isCampaignEnded = false;
-
-        uint totalMilestoneAmount = 0;
-        for (uint i = 0; i < _milestoneAmounts.length; i++) {
-            totalMilestoneAmount += _milestoneAmounts[i];
-            milestones.push(
-                Milestone({amount: _milestoneAmounts[i], isReleased: false})
-            );
-        }
-        require(
-            totalMilestoneAmount == goalAmount,
-            "Milestone totals must equal goal amount"
-        );
 
         // Predefined list of supported currencies
         addSupportedCurrencies();
@@ -200,18 +175,13 @@ contract Campaign {
     function releaseFunds() external onlyCreatorOrServer {
         require(isGoalMet, "Goal not met");
 
-        require(
-            nextMilestoneIndex < milestones.length,
-            "All milestones completed"
-        );
-        Milestone storage milestone = milestones[nextMilestoneIndex];
-        require(!milestone.isReleased, "Milestone already released");
+        uint amountToRelease = totalContributionsAmount;
+        require(amountToRelease > 0, "No funds to release");
 
-        milestone.isReleased = true;
-        nextMilestoneIndex++;
+        totalContributionsAmount = 0;
+        payable(creator).transfer(amountToRelease);
 
-        payable(creator).transfer(milestone.amount);
-        emit FundsReleased(nextMilestoneIndex - 1, milestone.amount);
+        emit FundsReleased(amountToRelease);
     }
 
     function endCampaign() external onlyCreatorOrServer {
@@ -219,12 +189,7 @@ contract Campaign {
         isCampaignEnded = true;
     }
 
-    function getMilestoneCount() external view returns (uint) {
-        return milestones.length;
-    }
-
-    function getMilestone(uint index) external view returns (uint, bool) {
-        Milestone storage milestone = milestones[index];
-        return (milestone.amount, milestone.isReleased);
+    function getCampaignStatus() external view returns (bool, uint) {
+        return (isGoalMet, totalContributionsAmount);
     }
 }
