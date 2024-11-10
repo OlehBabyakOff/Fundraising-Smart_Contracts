@@ -17,7 +17,7 @@ contract Campaign {
     bool public isGoalMet;
     bool public isCampaignEnded;
 
-    uint public constant MIN_DONATION = 1 ether;
+    uint public constant MIN_DONATION = 0.01 ether;
 
     mapping(address => uint) public contributions;
 

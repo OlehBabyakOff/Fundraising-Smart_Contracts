@@ -59,7 +59,7 @@ describe("Campaign", function () {
 
     it("Should revert if donation is below minimum donation", async function () {
       const { campaign, donor } = await loadFixture(deployCampaignFixture);
-      const lowDonation = ethers.parseEther("0.5");
+      const lowDonation = ethers.parseEther("0.001");
 
       await expect(
         campaign.connect(donor).donate({ value: lowDonation })
