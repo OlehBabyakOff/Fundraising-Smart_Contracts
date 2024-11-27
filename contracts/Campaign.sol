@@ -9,6 +9,10 @@ contract Campaign {
     address public serverAddress;
     address public creator;
 
+    string public title;
+    string public description;
+    string public image;
+
     uint public goalAmount;
     uint public totalContributionsAmount;
 
@@ -25,11 +29,21 @@ contract Campaign {
     event FundsReleased(uint amount);
     event RefundIssued(address indexed donor, uint amount);
 
-    constructor(address _creator, uint _goalAmount, uint _endDate) {
+    constructor(
+        address _creator,
+        string memory _title,
+        string memory _description,
+        string memory _image,
+        uint _goalAmount,
+        uint _endDate
+    ) {
         require(_endDate > block.timestamp, "End date must be in the future");
         require(_goalAmount > 0, "Goal amount must be greater than 0");
 
         creator = _creator;
+        title = _title;
+        description = _description;
+        image = _image;
         goalAmount = _goalAmount;
         endDate = _endDate;
         isGoalMet = false;
@@ -116,5 +130,27 @@ contract Campaign {
 
     function getCampaignStatus() external view returns (bool, uint) {
         return (isGoalMet, totalContributionsAmount);
+    }
+
+    function getCampaignDetails()
+        external
+        view
+        returns (
+            string memory _title,
+            string memory _description,
+            string memory _image,
+            uint _goalAmount,
+            uint _totalContributionsAmount,
+            uint _endDate
+        )
+    {
+        return (
+            title,
+            description,
+            image,
+            goalAmount,
+            totalContributionsAmount,
+            endDate
+        );
     }
 }
