@@ -21,12 +21,17 @@ contract Campaign {
     bool public isGoalMet;
     bool public isCampaignEnded;
 
-    uint public constant MIN_DONATION = 0.01 ether;
+    bool public isFundsReleased;
+    bool public isFundsRefunded;
+
+    uint public constant MIN_DONATION = 0.001 ether;
 
     mapping(address => uint) public contributions;
 
+    address[] public contributors;
+
     event DonationReceived(address indexed donor, uint amount);
-    event FundsReleased(uint amount);
+    event FundsReleased(address indexed creator, uint amount);
     event RefundIssued(address indexed donor, uint amount);
 
     constructor(
@@ -48,6 +53,8 @@ contract Campaign {
         endDate = _endDate;
         isGoalMet = false;
         isCampaignEnded = false;
+        isFundsReleased = false;
+        isFundsRefunded = false;
     }
 
     modifier onlyCreatorOrServer() {
@@ -82,6 +89,10 @@ contract Campaign {
             "Donation exceeds goal"
         );
 
+        if (contributions[msg.sender] == 0) {
+            contributors.push(msg.sender);
+        }
+
         contributions[msg.sender] += donation;
 
         totalContributionsAmount += donation;
@@ -101,14 +112,24 @@ contract Campaign {
             "Campaign must be ended for refunds"
         );
 
-        uint contributedAmount = contributions[msg.sender];
-        require(contributedAmount > 0, "No contributions to refund");
+        uint totalRefundedAmount = 0;
 
-        contributions[msg.sender] = 0;
+        for (uint i = 0; i < contributors.length; i++) {
+            address contributor = contributors[i];
+            uint contributedAmount = contributions[contributor];
 
-        payable(msg.sender).transfer(contributedAmount);
+            if (contributedAmount > 0) {
+                contributions[contributor] = 0;
 
-        emit RefundIssued(msg.sender, contributedAmount);
+                payable(contributor).transfer(contributedAmount);
+
+                totalRefundedAmount += contributedAmount;
+
+                emit RefundIssued(contributor, contributedAmount);
+            }
+        }
+
+        isFundsRefunded = true;
     }
 
     function releaseFunds() external onlyCreatorOrServer {
@@ -120,16 +141,17 @@ contract Campaign {
         totalContributionsAmount = 0;
         payable(creator).transfer(amountToRelease);
 
-        emit FundsReleased(amountToRelease);
+        isFundsReleased = true;
+
+        emit FundsReleased(creator, amountToRelease);
     }
 
     function endCampaign() external onlyCreatorOrServer {
-        require(block.timestamp >= endDate, "Campaign end date not reached");
         isCampaignEnded = true;
     }
 
-    function getCampaignStatus() external view returns (bool, uint) {
-        return (isGoalMet, totalContributionsAmount);
+    function getCampaignStatus() external view returns (bool, bool, uint) {
+        return (isCampaignEnded, isGoalMet, totalContributionsAmount);
     }
 
     function getCampaignDetails()
@@ -142,7 +164,11 @@ contract Campaign {
             string memory _image,
             uint _goalAmount,
             uint _totalContributionsAmount,
-            uint _endDate
+            uint _endDate,
+            bool _isGoalMet,
+            bool _isCampaignEnded,
+            bool _isFundsReleased,
+            bool _isFundsRefunded
         )
     {
         return (
@@ -152,7 +178,11 @@ contract Campaign {
             image,
             goalAmount,
             totalContributionsAmount,
-            endDate
+            endDate,
+            isGoalMet,
+            isCampaignEnded,
+            isFundsReleased,
+            isFundsRefunded
         );
     }
 }

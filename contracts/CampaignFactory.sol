@@ -15,6 +15,10 @@ contract CampaignFactory {
         uint goalAmount;
         uint totalContributionsAmount;
         uint endDate;
+        bool isGoalMet;
+        bool isCampaignEnded;
+        bool isFundsReleased;
+        bool isFundsRefunded;
     }
 
     event CampaignCreated(
@@ -78,7 +82,11 @@ contract CampaignFactory {
                 string memory image,
                 uint goalAmount,
                 uint totalContributionsAmount,
-                uint endDate
+                uint endDate,
+                bool isGoalMet,
+                bool isCampaignEnded,
+                bool isFundsReleased,
+                bool isFundsRefunded
             ) = campaign.getCampaignDetails();
 
             result[i] = CampaignDetails(
@@ -89,7 +97,11 @@ contract CampaignFactory {
                 image,
                 goalAmount,
                 totalContributionsAmount,
-                endDate
+                endDate,
+                isGoalMet,
+                isCampaignEnded,
+                isFundsReleased,
+                isFundsRefunded
             );
         }
 
