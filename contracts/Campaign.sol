@@ -136,6 +136,7 @@ contract Campaign {
         external
         view
         returns (
+            address _creator,
             string memory _title,
             string memory _description,
             string memory _image,
@@ -145,6 +146,7 @@ contract Campaign {
         )
     {
         return (
+            creator,
             title,
             description,
             image,

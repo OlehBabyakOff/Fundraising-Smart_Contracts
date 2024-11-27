@@ -6,6 +6,17 @@ import "./Campaign.sol";
 contract CampaignFactory {
     address[] public campaigns;
 
+    struct CampaignDetails {
+        address campaignAddress;
+        address creator;
+        string title;
+        string description;
+        string image;
+        uint goalAmount;
+        uint totalContributionsAmount;
+        uint endDate;
+    }
+
     event CampaignCreated(
         address indexed campaignAddress,
         address indexed creator,
@@ -48,15 +59,38 @@ contract CampaignFactory {
     function getCampaigns(
         uint startIndex,
         uint limit
-    ) external view returns (address[] memory) {
+    ) external view returns (CampaignDetails[] memory) {
         uint endIndex = startIndex + limit;
         if (endIndex > campaigns.length) {
             endIndex = campaigns.length;
         }
 
-        address[] memory result = new address[](endIndex - startIndex);
-        for (uint i = startIndex; i < endIndex; i++) {
-            result[i - startIndex] = campaigns[i];
+        uint resultSize = endIndex - startIndex;
+        CampaignDetails[] memory result = new CampaignDetails[](resultSize);
+
+        for (uint i = 0; i < resultSize; i++) {
+            address campaignAddress = campaigns[startIndex + i];
+            Campaign campaign = Campaign(campaignAddress);
+            (
+                address creator,
+                string memory title,
+                string memory description,
+                string memory image,
+                uint goalAmount,
+                uint totalContributionsAmount,
+                uint endDate
+            ) = campaign.getCampaignDetails();
+
+            result[i] = CampaignDetails(
+                campaignAddress,
+                creator,
+                title,
+                description,
+                image,
+                goalAmount,
+                totalContributionsAmount,
+                endDate
+            );
         }
 
         return result;
