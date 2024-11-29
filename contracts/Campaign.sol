@@ -98,6 +98,10 @@ contract Campaign {
         totalContributionsAmount += donation;
 
         emit DonationReceived(msg.sender, msg.value);
+
+        if (totalContributionsAmount >= goalAmount) {
+            isGoalMet = true;
+        }
     }
 
     function refund() external {
@@ -127,7 +131,7 @@ contract Campaign {
         isFundsRefunded = true;
     }
 
-    function releaseFunds() external onlyCreatorOrServer {
+    function releaseFunds() external {
         require(isGoalMet, "Goal not met");
 
         uint amountToRelease = totalContributionsAmount;
@@ -141,7 +145,7 @@ contract Campaign {
         emit FundsReleased(creator, amountToRelease);
     }
 
-    function endCampaign() external onlyCreatorOrServer {
+    function endCampaign() external {
         isCampaignEnded = true;
     }
 
