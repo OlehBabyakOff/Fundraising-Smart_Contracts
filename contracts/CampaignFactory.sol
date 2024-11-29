@@ -5,6 +5,7 @@ import "./Campaign.sol";
 
 contract CampaignFactory {
     address[] public campaigns;
+    mapping(address => bool) public hasActiveCampaign;
 
     event CampaignCreated(
         address indexed campaignAddress,
@@ -23,6 +24,11 @@ contract CampaignFactory {
         uint _goalAmount,
         uint _endDate
     ) external {
+        require(
+            !hasActiveCampaign[msg.sender],
+            "You already have an active campaign."
+        );
+
         Campaign newCampaign = new Campaign(
             msg.sender,
             _title,
@@ -34,6 +40,8 @@ contract CampaignFactory {
 
         campaigns.push(address(newCampaign));
 
+        hasActiveCampaign[msg.sender] = true;
+
         emit CampaignCreated(
             address(newCampaign),
             msg.sender,
@@ -43,6 +51,15 @@ contract CampaignFactory {
             _goalAmount,
             _endDate
         );
+    }
+
+    function resetActiveCampaignStatus(address creator) external {
+        require(
+            hasActiveCampaign[creator],
+            "Creator does not have an active campaign."
+        );
+
+        hasActiveCampaign[creator] = false;
     }
 
     function getTotalCampaigns() external view returns (uint) {
