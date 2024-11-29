@@ -98,11 +98,6 @@ contract Campaign {
         totalContributionsAmount += donation;
 
         emit DonationReceived(msg.sender, msg.value);
-
-        if (totalContributionsAmount >= goalAmount) {
-            isGoalMet = true;
-            isCampaignEnded = true;
-        }
     }
 
     function refund() external {
