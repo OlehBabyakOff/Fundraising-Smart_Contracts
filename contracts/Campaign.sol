@@ -6,7 +6,8 @@ interface IERC20 {
 }
 
 contract Campaign {
-    address public serverAddress;
+    address public constant SERVER_ADDRESS =
+        0xA16095c9B486e9f81f8170D932724FD043896B8A;
     address public creator;
 
     string public title;
@@ -59,7 +60,7 @@ contract Campaign {
 
     modifier onlyCreatorOrServer() {
         require(
-            msg.sender == creator || msg.sender == serverAddress,
+            msg.sender == creator || msg.sender == SERVER_ADDRESS,
             "Not allowed"
         );
         _;
@@ -135,14 +136,22 @@ contract Campaign {
         require(isGoalMet, "Goal not met");
 
         uint amountToRelease = totalContributionsAmount;
+
         require(amountToRelease > 0, "No funds to release");
 
+        uint serverShare = (amountToRelease * 5) / 100;
+
+        uint creatorShare = amountToRelease - serverShare;
+
         totalContributionsAmount = 0;
-        payable(creator).transfer(amountToRelease);
+
+        payable(SERVER_ADDRESS).transfer(serverShare);
+
+        payable(creator).transfer(creatorShare);
 
         isFundsReleased = true;
 
-        emit FundsReleased(creator, amountToRelease);
+        emit FundsReleased(creator, creatorShare);
     }
 
     function endCampaign() external {
